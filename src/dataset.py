@@ -28,6 +28,9 @@ class ChurnDataset(Dataset):
 
     def shape(self):
         return self.x.shape, self.y.shape
+    
+    def get_labels(self):
+        return self.y
 
     def __getitem__(self, index):
         # return {
