@@ -1,16 +1,16 @@
 import torch
+import torch.optim as optim
 import numpy as np
 from baseline import BaselineNN
 from dataset import ChurnDataset
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
-from torch.nn import BCELoss
-from torch.optim import Adam
+from torch.nn import BCEWithLogitsLoss
 from sklearn.metrics import roc_auc_score
 
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, seed=1):
+def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=False, seed=1):
     # Call dataset for torch use, and get 80-20 train-test split
     ds = ChurnDataset("./data/churn.csv")
     gen = torch.Generator().manual_seed(seed)
@@ -19,8 +19,8 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, seed=1):
     # Create weights for weighted sampler, to get even 0/1 cases from batch
     y_train = [ds.get_labels()[i].item() for i in train.indices]
     class_sample_count = np.array([len(np.where(y_train == t)[0]) for t in np.unique(y_train)])
-    weight = 1. / class_sample_count
-    samples_weight = torch.tensor([weight[int(i)] for i in y_train], dtype=torch.float32)
+    weights = 1. / class_sample_count
+    samples_weight = torch.tensor([weights[int(i)] for i in y_train], dtype=torch.float32)
     strat_sampler = WeightedRandomSampler(samples_weight, len(samples_weight), generator=gen)
 
     # Define data loaders from split
@@ -29,8 +29,13 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, seed=1):
 
     # Model, loss, optimizer
     model = BaselineNN(n_in, n_hid, n_layers)
-    bce = BCELoss()
-    optimizer = Adam(model.parameters(), lr=lr)
+    if init_b:  # initialize bias for imbalanced labels
+        model.apply(init_bias)
+    
+    print(class_sample_count[1]/class_sample_count[0])
+    bce = BCEWithLogitsLoss(pos_weight=torch.tensor(weight*class_sample_count[0]/class_sample_count[1], dtype=torch.float32))
+    # bce = BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     best_auc = 0
     best_model_params = None
@@ -40,8 +45,9 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, seed=1):
         epoch_loss = []
         for f, l in train_loader:
             # forward pass
-            out = model(f)
-            loss = bce(out, l)
+            logit = model(f)  
+            out = torch.sigmoid(logit)  # since I am using BCEWithLogitsLoss and don't have sigmoid at end of neural network
+            loss = bce(logit, l)
             epoch_loss.append(loss.item())
             # backward pass
             optimizer.zero_grad()
@@ -61,7 +67,7 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, seed=1):
 
     # Save model parameters
     torch.save(model.state_dict(), "./models/baseline.pt")
-    torch.save(best_model_params, "./models/high_acc_baseline.pt")
+    torch.save(best_model_params, "./models/high_auc_baseline.pt")
 
     print(f"Best train AUC: {best_auc}")
     
@@ -82,12 +88,14 @@ def run_test_metrics(n_in, n_hidden, n_layers, path, loader):
     tn = 0  # true negative
 
     for feats, labels in loader:  # evaluate test set
-        out = model(feats)
+        out = torch.sigmoid(model(feats))
         gt = np.append(gt, labels.detach().cpu().numpy())
         pred = np.append(pred, out.detach().cpu().numpy())
 
         for i, l in enumerate(labels):  # check which values are true or not
-            if l == out[i].round():
+            single_pred = out[i].round()
+            # print(single_pred, 1 - single_pred)
+            if l == single_pred:
                 if l == 1:
                     tp += 1
                 else:
@@ -108,19 +116,39 @@ def run_test_metrics(n_in, n_hidden, n_layers, path, loader):
     acc = (tp + tn) / (tp + fp + fn + tn)  # test accuracy
     auc = roc_auc_score(gt, pred)
     return acc, auc
+
+
+def init_bias(m):
+    """
+    Initialize bias values for neural network
+    The bias number is hard coded for PyTorch to call apply, and the number is log(pos_labels/neg_labels)
+    """
+    if isinstance(m, torch.nn.Linear):
+        m.bias.data.fill_(np.exp(0.2524601896582573))
         
 
 if __name__ == '__main__':
     # Hyperparameters
     n_in = 12
-    n_hid = 24
+    n_hid = 12
     n_layers = 2
     lr = 0.0001
-    batch_size=100
+    batch_size=50
     n_epochs = 100
+    init_b = True
+    seed = 5105
+    weight = 0.5
 
-    losses, test_loader = train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=n_epochs, seed=5105)
-    test_acc = run_test_metrics(n_in, n_hid, n_layers, "./models/high_acc_baseline.pt", test_loader)
+    losses, test_loader = train(n_in, 
+                                n_hid, 
+                                n_layers, 
+                                lr, 
+                                batch_size, 
+                                n_epochs=n_epochs,
+                                weight=weight, 
+                                init_b=init_b, 
+                                seed=seed)
+    test_acc = run_test_metrics(n_in, n_hid, n_layers, "./models/high_auc_baseline.pt", test_loader)
     print(test_acc)
     plt.clf()
     loss_fig = sns.lineplot(x=list(range(0, len(losses))), y=losses)

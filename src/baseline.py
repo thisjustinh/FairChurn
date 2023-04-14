@@ -13,7 +13,7 @@ class BaselineNN(nn.Module):
             layers.append(nn.Linear(n_hidden, n_hidden))
             layers.append(nn.ReLU())
         layers.append(nn.Linear(n_hidden, 1))  # output layer
-        layers.append(nn.Sigmoid())  # output activation
+        # layers.append(nn.Sigmoid())  # output activation, not needed for BCEWithLogitsLoss
         
         self.model = nn.Sequential(*layers)  # create model from layers list
     

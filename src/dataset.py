@@ -1,6 +1,8 @@
 import torch
 import pandas as pd
+import numpy as np
 from torch.utils.data import Dataset
+from sklearn.preprocessing import StandardScaler
 
 
 class ChurnDataset(Dataset):
@@ -18,12 +20,19 @@ class ChurnDataset(Dataset):
         # Clean data: encode gender to binary (Male = 0, Female = 1)
         cleaned['Gender'].replace(('Male', 'Female'), (0, 1), inplace=True)
 
-        # Turn into tensors
-        x = cleaned.iloc[:, :-1]
-        y = cleaned.iloc[:, -1]
+        # Log transform EstimatedSalary and Balance
+        cleaned['EstimatedSalary'] = np.log(cleaned.pop('EstimatedSalary') + 1)
+        cleaned['Balance'] = np.log(cleaned.pop('Balance') + 1)
 
-        # Features, Labels
-        self.x = torch.tensor(x.values, dtype=torch.float32)  # size = [nrow, ncol - 1]
+        print(cleaned.head())
+
+        # Split into features and labels
+        y = cleaned.pop('Exited')
+        scaler = StandardScaler()
+        x = scaler.fit_transform(cleaned)  # features are mean 0 and sd 1
+
+        # Features, Labels as tensors
+        self.x = torch.tensor(x, dtype=torch.float32)  # size = [nrow, ncol - 1]
         self.y = torch.tensor(y, dtype=torch.float32).unsqueeze(1)  # size = [nrow, 1]
 
     def shape(self):
