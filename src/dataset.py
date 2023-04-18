@@ -24,16 +24,19 @@ class ChurnDataset(Dataset):
         cleaned['EstimatedSalary'] = np.log(cleaned.pop('EstimatedSalary') + 1)
         cleaned['Balance'] = np.log(cleaned.pop('Balance') + 1)
 
-        print(cleaned.head())
+        # Define sensitive attribute, here it's age
+        age = pd.Series(np.where(cleaned['Age'] < np.median(cleaned['Age']), 0, 1), cleaned.index)
+        # print(np.median(cleaned['Age']))
 
         # Split into features and labels
         y = cleaned.pop('Exited')
         scaler = StandardScaler()
         x = scaler.fit_transform(cleaned)  # features are mean 0 and sd 1
 
-        # Features, Labels as tensors
+        # Features, Labels, Sensitive Attribute as tensors
         self.x = torch.tensor(x, dtype=torch.float32)  # size = [nrow, ncol - 1]
         self.y = torch.tensor(y, dtype=torch.float32).unsqueeze(1)  # size = [nrow, 1]
+        self.sens = torch.tensor(age, dtype=torch.float32).unsqueeze(1)
 
     def shape(self):
         return self.x.shape, self.y.shape
@@ -48,7 +51,8 @@ class ChurnDataset(Dataset):
         # }
         return (
             self.x[index],
-            self.y[index]
+            self.y[index],
+            self.sens[index]
         )
 
     def __len__(self):

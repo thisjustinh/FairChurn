@@ -15,7 +15,6 @@ class FairAdversary(nn.Module):
             nn.Linear(n_hidden, n_hidden),
             nn.ReLU(),
             nn.Linear(n_hidden, n_out),
-            nn.Sigmoid()
         )
     
     def forward(self, x):

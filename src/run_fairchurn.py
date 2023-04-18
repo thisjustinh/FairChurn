@@ -2,22 +2,17 @@ import torch
 import torch.optim as optim
 import numpy as np
 from baseline import BaselineNN
+from fairchurn import FairAdversary
 from dataset import ChurnDataset
 from torch.utils.data import DataLoader, WeightedRandomSampler, random_split
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import BCEWithLogitsLoss, BCELoss
 from sklearn.metrics import roc_auc_score
 
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=False, seed=1):
-    """
-    Train baseline binary classification NN on dataset
-    Arguments take in given number of inputs, number of hidden nodes, and number of hidden layers for model
-    Saves train model dictionaries for both the best-performing model state, and the model after all training is done
-    Returns a list of losses and the test dataset DataLoader
-    """
-    
     # Call dataset for torch use, and get 80-20 train-test split
     ds = ChurnDataset("./data/churn.csv")
     gen = torch.Generator().manual_seed(seed)
@@ -35,34 +30,61 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=
     test_loader = DataLoader(test, shuffle=False)
 
     # Model, loss, optimizer
-    model = BaselineNN(n_in, n_hid, n_layers)
+    fairmodel = BaselineNN(n_in, n_hid, n_layers)
     if init_b:  # initialize bias for imbalanced labels
-        model.apply(init_bias)
+        fairmodel.apply(init_bias)
     
-    print(class_sample_count[1]/class_sample_count[0])
     bce = BCEWithLogitsLoss(pos_weight=torch.tensor(weight*class_sample_count[0]/class_sample_count[1], dtype=torch.float32))
     # bce = BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(fairmodel.parameters(), lr=lr)
+
+    # Adversary model, loss, optimizer
+    adversary = FairAdversary(1, n_hidden=n_hid)
+    adv_bce = BCEWithLogitsLoss()  # here, sens are even, so no pos_weight necessary
+    adv_optimizer = optim.Adam(adversary.parameters(), lr=lr)
 
     best_auc = 0
     best_model_params = None
     
     losses = []
+    adv_losses = []
+    fair_losses = []
     for i in range(n_epochs):
         epoch_loss = []
+        epoch_adv_loss = []
+        epoch_fair_loss = []
+        ### Train Adversary ###
         for f, l, s in train_loader:
             # forward pass
-            logit = model(f)  
-            out = torch.sigmoid(logit)  # since I am using BCEWithLogitsLoss and don't have sigmoid at end of neural network
-            loss = bce(logit, l)
+            logit_y = fairmodel(f)
+            logit_s = adversary(torch.sigmoid(logit_y))
+            loss_adv = adv_bce(logit_s, s)
+            epoch_adv_loss.append(loss_adv.item())
+            # backward pass
+            adv_optimizer.zero_grad()
+            loss_adv.backward()
+            adv_optimizer.step()
+        ### Train Classifier ###
+        for f, l, s in train_loader:
+        # single batch
+        # f, l, s = next(iter(train_loader))
+            # forward pass
+            logit_y = fairmodel(f)
+            out = torch.sigmoid(logit_y)  # since I am using BCEWithLogitsLoss and don't have sigmoid at end of neural network
+            logit_s = adversary(out)
+            loss = bce(logit_y, l)
+            fair_loss = loss - adv_bce(logit_s, s)  # composite loss penalized by good adversarial performance
             epoch_loss.append(loss.item())
+            epoch_fair_loss.append(fair_loss.item())
             # backward pass
             optimizer.zero_grad()
-            loss.backward()
+            fair_loss.backward()
             optimizer.step()
             
         # progress
         losses.append(np.mean(epoch_loss))
+        adv_losses.append(np.mean(epoch_adv_loss))
+        fair_losses.append(np.mean(epoch_fair_loss))
         acc = (out.round() == l).float().mean()
         auc = roc_auc_score(l.detach().cpu().numpy(), out.detach().cpu().numpy())
         print(f"{i}: accuracy {acc}, AUC {auc}")
@@ -70,23 +92,19 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=
         # save best model by auc
         if auc >= best_auc:  # we prefer higher epochs of training, so >=
             best_auc = auc
-            best_model_params = model.state_dict()
+            best_model_params = fairmodel.state_dict()
 
     # Save model parameters
-    torch.save(model.state_dict(), "./models/baseline.pt")
-    torch.save(best_model_params, "./models/high_auc_baseline.pt")
+    torch.save(fairmodel.state_dict(), "./models/fairchurn.pt")
+    torch.save(adversary.state_dict(), "./models/fairadv.pt")
+    torch.save(best_model_params, "./models/high_auc_fairchurn.pt")
 
     print(f"Best train AUC: {best_auc}")
     
-    return losses, test_loader
+    return losses, adv_losses, fair_losses, test_loader
 
 
 def run_test_metrics(n_in, n_hidden, n_layers, path, loader):
-    """
-    Calculate metrics for the model against the test data.
-    These include classification metrics like accuracy and AUC (for the ROC curve)
-    as well as fairness metrics like parity, equal opportunity, and equalized odds.
-    """
     model = BaselineNN(n_in, n_hidden, n_layers)
     model.load_state_dict(torch.load(path))
     model.eval()
@@ -143,7 +161,7 @@ def run_test_metrics(n_in, n_hidden, n_layers, path, loader):
 
     conf_mat = sns.heatmap([[tn, fn], [fp, tp]], annot=True)  # plot confusion matrix
     conf_mat.set(xlabel="Ground Truth", ylabel="Predicted")
-    conf_mat.get_figure().savefig("./models/baseline_confusion_matrix.png", dpi=300, bbox_inches='tight')
+    conf_mat.get_figure().savefig("./models/fair_confusion_matrix.png", dpi=300, bbox_inches='tight')
 
     acc = (tp + tn) / (tp + fp + fn + tn)  # test accuracy
     auc = roc_auc_score(gt, pred)
@@ -192,19 +210,24 @@ if __name__ == '__main__':
     seed = 5105
     weight = 0.1
 
-    losses, test_loader = train(n_in, 
-                                n_hid, 
-                                n_layers, 
-                                lr, 
-                                batch_size, 
-                                n_epochs=n_epochs,
-                                weight=weight, 
-                                init_b=init_b, 
-                                seed=seed)
-    test_acc, auc, fairness_dict = run_test_metrics(n_in, n_hid, n_layers, "./models/baseline.pt", test_loader)
+    losses, adv_losses, comp_losses, test_loader = train(n_in, 
+                                                         n_hid, 
+                                                         n_layers, 
+                                                         lr, 
+                                                         batch_size, 
+                                                         n_epochs=n_epochs,
+                                                         weight=weight, 
+                                                         init_b=init_b, 
+                                                         seed=seed)
+    test_acc, auc, fairness_dict = run_test_metrics(n_in, n_hid, n_layers, "./models/fairchurn.pt", test_loader)
     print(f"Test accuracy: {test_acc}, AUC: {auc}")
     print(fairness_dict)
+
+    # Create loss plot from three losses
     plt.clf()
-    loss_fig = sns.lineplot(x=list(range(0, len(losses))), y=losses)
+    loss_df = pd.DataFrame({'Classifier': losses,
+                            'Adversary': adv_losses,
+                            'Composite': comp_losses})
+    loss_fig = sns.lineplot(loss_df)
     loss_fig.set(xlabel="Epoch", ylabel="BCE Loss")
-    loss_fig.get_figure().savefig("./models/baseline_loss.png", dpi=300, bbox_inches='tight')
+    loss_fig.get_figure().savefig("./models/fair_loss.png", dpi=300, bbox_inches='tight')
