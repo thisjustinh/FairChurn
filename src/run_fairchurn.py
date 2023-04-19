@@ -233,3 +233,30 @@ if __name__ == '__main__':
     loss_fig = sns.lineplot(loss_df)
     loss_fig.set(xlabel="Epoch", ylabel="BCE Loss")
     loss_fig.get_figure().savefig("./models/fair_loss.png", dpi=300, bbox_inches='tight')
+
+
+ds = ChurnDataset("./data/churn.csv")
+df = pd.DataFrame(ds)
+df = df.select_dtypes(include=['int', 'float'])
+# Median
+median = df['values'].median()
+
+# Mode
+mode = df['values'].mode()
+
+# Range
+range = df['values'].max() - df['values'].min()
+
+# Variance
+variance = df['values'].var()
+
+# Standard deviation
+std_dev = df['values'].std()
+
+# Maximum likelihood
+max_likelihood = df['values'].max()
+
+# Summary statistics
+summary = df['values'].describe()
+
+print(median, mode, range, variance, std_dev, max_likelihood, summary)
