@@ -47,6 +47,19 @@ For the classifier, our composite loss becomes `classifier_loss - adversary_loss
 
 Here, we include relevant hyperparameters used for both the baseline and FairChurn neural networks. Relevant graphs of performance for both, as well as pretrained model files, can be found under the `models` folder.
 
+The following hyperparameters are defined:
+
+- `n_in`: Number of inputs for classifier
+- `n_hid`: Number of hidden nodes
+- `n_layers`: Number of hidden layers for classifier
+- `lr`: Learning rate for classifier & adversary
+- `batch_size`: How many training examples per model update
+- `n_epochs`: Number of training epochs
+- `init_b`: Whether to initialize bias for classifier or not
+- `seed`: Random seed for reproducibility
+- `weight`: Scales how strong the positive weight is for the loss function
+- `adv_weight`: How much we care about fairness (< 1 prioritize performance, > 1 prioritize fairness)
+
 ### Baseline NN
 
 ```{python3}
@@ -69,6 +82,29 @@ weight = 0.1
 
 ### FairChurn
 
+#### Best for Parity
+
+```{python3}
+n_in = 12
+n_hid = 12
+n_layers = 2
+lr = 0.0001
+batch_size=50
+n_epochs = 1000
+init_b = True
+seed = 5105
+weight = 0.15
+adv_weight = 2
+```
+
+- Best train AUC: 0.9915110356536503
+- Test accuracy: 0.7856666666666666, AUC: 0.8065888176222171
+- Demographic Parity: -0.028131831536655966
+- Equal Opportunity: -0.13909075771980428
+- Equalized Odds FPR: 0.1109589261831483
+
+#### Best for Equalized Odds
+
 ```{python3}
 n_in = 12
 n_hid = 12
@@ -79,6 +115,7 @@ n_epochs = 1000
 init_b = True
 seed = 5105
 weight = 0.1
+adv_weight = 1
 ```
 
 - Best train AUC: 0.9830220713073005

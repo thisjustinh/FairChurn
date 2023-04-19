@@ -12,7 +12,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=False, seed=1):
+def train(n_in, n_hid, n_layers, lr, batch_size, adv_weight=1, n_epochs=100, weight=1, init_b=False, seed=1):
     # Call dataset for torch use, and get 80-20 train-test split
     ds = ChurnDataset("./data/churn.csv")
     gen = torch.Generator().manual_seed(seed)
@@ -73,7 +73,7 @@ def train(n_in, n_hid, n_layers, lr, batch_size, n_epochs=100, weight=1, init_b=
             out = torch.sigmoid(logit_y)  # since I am using BCEWithLogitsLoss and don't have sigmoid at end of neural network
             logit_s = adversary(out)
             loss = bce(logit_y, l)
-            fair_loss = loss - adv_bce(logit_s, s)  # composite loss penalized by good adversarial performance
+            fair_loss = loss - adv_weight * adv_bce(logit_s, s)  # composite loss penalized by good adversarial performance
             epoch_loss.append(loss.item())
             epoch_fair_loss.append(fair_loss.item())
             # backward pass
@@ -199,7 +199,7 @@ def init_bias(m):
         
 
 if __name__ == '__main__':
-    # Hyperparameters
+    # Hyperparameters, see description in README
     n_in = 12
     n_hid = 12
     n_layers = 2
@@ -208,13 +208,15 @@ if __name__ == '__main__':
     n_epochs = 1000
     init_b = True
     seed = 5105
-    weight = 0.1
+    weight = 0.15
+    adv_weight = 2
 
     losses, adv_losses, comp_losses, test_loader = train(n_in, 
                                                          n_hid, 
                                                          n_layers, 
                                                          lr, 
-                                                         batch_size, 
+                                                         batch_size,
+                                                         adv_weight=adv_weight, 
                                                          n_epochs=n_epochs,
                                                          weight=weight, 
                                                          init_b=init_b, 
