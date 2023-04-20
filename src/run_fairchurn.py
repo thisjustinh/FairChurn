@@ -235,28 +235,30 @@ if __name__ == '__main__':
     loss_fig.get_figure().savefig("./models/fair_loss.png", dpi=300, bbox_inches='tight')
 
 
-ds = ChurnDataset("./data/churn.csv")
-df = pd.DataFrame(ds)
-df = df.select_dtypes(include=['int', 'float'])
-# Median
-median = df['values'].median()
+# Load dataset from file, selecting only the desired columns
+df = pd.read_csv("./data/churn.csv", usecols=['CreditScore', 'Age', 'Tenure', 'Balance', 'IsActiveMember', 'EstimatedSalary', 'Exited'])
 
-# Mode
-mode = df['values'].mode()
+# Select only numeric columns
+num_cols = df.select_dtypes(include=['int', 'float']).columns
 
-# Range
-range = df['values'].max() - df['values'].min()
+# Calculate statistics
+mean = df[num_cols].mean() # Mean
+median = df[num_cols].median() # Median
+mode = df[num_cols].mode().iloc[0] # Mode
+variance = df[num_cols].var() # Variance
+std_dev = df[num_cols].std() # Standard deviation
+minimum = df[num_cols].min() # Minimum
+maximum = df[num_cols].max() # Maximum
+range = maximum - minimum # Range
+max_likelihood = df[num_cols].max() # Maximum likelihood
 
-# Variance
-variance = df['values'].var()
-
-# Standard deviation
-std_dev = df['values'].std()
-
-# Maximum likelihood
-max_likelihood = df['values'].max()
-
-# Summary statistics
-summary = df['values'].describe()
-
-print(median, mode, range, variance, std_dev, max_likelihood, summary)
+# Print statistics
+print("The Mean:\n", mean,
+      "\nThe Median:\n", median,
+      "\nThe Mode:\n", mode,
+      "\nThe Variance:\n", variance,
+      "\nThe Standard Deviation:\n", std_dev,
+      "\nThe Minimum:\n", minimum,
+      "\nThe Maximum:\n", maximum,
+      "\nThe Range:\n", range,
+      "\nThe Maximum Likelihood:\n", max_likelihood)
