@@ -3,6 +3,16 @@ Our goal is to predict bank customer churn while mitigating bias on age, since a
 
 The deep learning implementation is done completely in PyTorch. The Conda environment used can be found in the `environment.yml` file.
 
+## Dataset Summary Statistics
+
+| Variable | Mean | Median | Mode |  Std Dev | Min | Max | Range | MLE | 
+| - | - | - | - | - | - | - | - | - 
+| **CreditScore** | 650.53 | 652.00 | 850.00 | 96.65 | 350 | 850 | 500 | 850 |
+| **Age** | 38.92 | 37 | 37 | 10.49 | 18 | 92 | 74 | 92 |
+| **Tenure** | 5.01 | 5 | 2 | 2.89 | 0 | 10 | 10 | 10 |
+| **Balance** | 76,485.89 | 97,198.54 | 0 | 62,397.41 | 0 | 250,898.09 | 250,898.09 | 250,898.09 |
+| **EstimatedSalary** | 100,090.24 | 100,193.915 | 24,924.92 | 57,510.49 | 11.58 | 199,992.48 | 199,980.90 | 199,992.48 |
+
 ## Classes
 
 We create three classes: `ChurnDataset`, `BaselineNN`, and `FairAdversary`. All three can be found in their own Python files under the `src` folder.
@@ -124,84 +134,3 @@ adv_weight = 1
 - Equal Opportunity: -0.11148799260918373
 - Equalized Odds FPR: 0.025056800786348477
 
-### Statistic Summary
-- The Mean:
- CreditScore           650.528800
-Age                    38.921800
-Tenure                  5.012800
-Balance             76485.889288
-IsActiveMember          0.515100
-EstimatedSalary    100090.239881
-Exited                  0.203700
-
-The Median:
- CreditScore           652.000
-Age                    37.000
-Tenure                  5.000
-Balance             97198.540
-IsActiveMember          1.000
-EstimatedSalary    100193.915
-Exited                  0.000
-
-The Mode:
- CreditScore          850.00
-Age                   37.00
-Tenure                 2.00
-Balance                0.00
-IsActiveMember         1.00
-EstimatedSalary    24924.92
-Exited                 0.00
-
-The Variance:
- CreditScore        9.341860e+03
-Age                1.099941e+02
-Tenure             8.364673e+00
-Balance            3.893436e+09
-IsActiveMember     2.497970e-01
-EstimatedSalary    3.307457e+09
-Exited             1.622225e-01
-
-The Standard Deviation:
- CreditScore           96.653299
-Age                   10.487806
-Tenure                 2.892174
-Balance            62397.405202
-IsActiveMember         0.499797
-EstimatedSalary    57510.492818
-Exited                 0.402769
-
-The Minimum:
- CreditScore        350.00
-Age                 18.00
-Tenure               0.00
-Balance              0.00
-IsActiveMember       0.00
-EstimatedSalary     11.58
-Exited               0.00
-
-The Maximum:
- CreditScore           850.00
-Age                    92.00
-Tenure                 10.00
-Balance            250898.09
-IsActiveMember          1.00
-EstimatedSalary    199992.48
-Exited                  1.00
-
-The Range:
- CreditScore           500.00
-Age                    74.00
-Tenure                 10.00
-Balance            250898.09
-IsActiveMember          1.00
-EstimatedSalary    199980.90
-Exited                  1.00
-
-The Maximum Likelihood:
- CreditScore           850.00
-Age                    92.00
-Tenure                 10.00
-Balance            250898.09
-IsActiveMember          1.00
-EstimatedSalary    199992.48
-Exited                  1.00
