@@ -6,7 +6,10 @@ from sklearn.preprocessing import StandardScaler
 
 
 class ChurnDataset(Dataset):
-
+    """
+    Custom PyTorch Dataset class for use with Pytorch DataLoader.
+    Preprocessing is completed in the constructor, then the generator returns tuple of features, labels, and sens.
+    """
     def __init__(self, filepath):
         # Import data from CSV
         df = pd.read_csv(filepath)
@@ -36,7 +39,7 @@ class ChurnDataset(Dataset):
         # Features, Labels, Sensitive Attribute as tensors
         self.x = torch.tensor(x, dtype=torch.float32)  # size = [nrow, ncol - 1]
         self.y = torch.tensor(y, dtype=torch.float32).unsqueeze(1)  # size = [nrow, 1]
-        self.sens = torch.tensor(age, dtype=torch.float32).unsqueeze(1)
+        self.sens = torch.tensor(age, dtype=torch.float32).unsqueeze(1)  # size = [nrow, 1]
 
     def shape(self):
         return self.x.shape, self.y.shape
@@ -45,14 +48,10 @@ class ChurnDataset(Dataset):
         return self.y
 
     def __getitem__(self, index):
-        # return {
-        #     'feature': torch.tensor([self.x[index]], dtype=torch.float32),
-        #     'label': torch.tensor([self.y[index]], dtype=torch.float32)
-        # }
         return (
-            self.x[index],
-            self.y[index],
-            self.sens[index]
+            self.x[index],  # features
+            self.y[index],  # labels
+            self.sens[index]  # sensitive attributes
         )
 
     def __len__(self):
