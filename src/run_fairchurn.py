@@ -13,6 +13,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 def train(n_in, n_hid, n_layers, lr, batch_size, adv_weight=1, n_epochs=100, weight=1, init_b=False, seed=1):
+    """
+    Trains the classifier and adversary (discriminator) in order to predict churn well and debias age.
+    After setting up the classifier and dataloaders, we define the adversary to predict sensitive attributes based on predicted probabilities.
+    The adversary and classifier train in parallel. Both model dictionaries are saved after training.
+    Classifier, adversary, and composite losses are returned by the function.
+    """
     # Call dataset for torch use, and get 80-20 train-test split
     ds = ChurnDataset("./data/churn.csv")
     gen = torch.Generator().manual_seed(seed)
@@ -105,6 +111,12 @@ def train(n_in, n_hid, n_layers, lr, batch_size, adv_weight=1, n_epochs=100, wei
 
 
 def run_test_metrics(n_in, n_hidden, n_layers, path, loader):
+    """
+    Exact same code as the evaluation from run_baseline.
+    Calculate metrics for the model against the test data.
+    These include classification metrics like accuracy and AUC (for the ROC curve)
+    as well as fairness metrics like parity, equal opportunity, and equalized odds.
+    """
     model = BaselineNN(n_in, n_hidden, n_layers)
     model.load_state_dict(torch.load(path))
     model.eval()
